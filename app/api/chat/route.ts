@@ -77,10 +77,12 @@ export async function POST(req: NextRequest) {
 // failures instead of just answering the user. Belt-and-braces alongside the
 // system-prompt rules, since Gemini sometimes leaks reasoning anyway.
 const LEAK_PATTERNS: RegExp[] = [
+  // Tool-use & failure narration
   /\bi['’]?ll fall back\b/i,
   /\bfall(?:ing)? back to\b/i,
   /\bi['’]?ll try (?:again|using)\b/i,
-  /\bi will try again\b/i,
+  /\bi will try (?:again|to find)\b/i,
+  /\bi['’]?ll try to find\b/i,
   /\bi['’]?ll use\b.*\b(google[_ ]?search|url[_ ]?context)\b/i,
   /\bi will (?:now )?use\b.*\b(general knowledge|knowledge base|google[_ ]?search|url[_ ]?context)\b/i,
   /\bi apologi[sz]e[, ]/i,
@@ -95,6 +97,16 @@ const LEAK_PATTERNS: RegExp[] = [
   /\brestricted to nataliesuleyman\.com\.au\b/i,
   /\bbased on (?:my|the) (?:general )?knowledge base\b/i,
   /\bit seems there was an issue\b/i,
+
+  // Question restatement / planning preambles
+  /^the user (?:is|has) (?:asking|asked|requesting)\b/i,
+  /\bthe user (?:is|has) (?:asking|asked) a question\b/i,
+  /^you(?:'re| are) asking\b/i,
+  /^you want to know\b/i,
+  /^let me (?:check|look|find|search)\b/i,
+  /^i['’]?ll (?:check|look up|search|find|see)\b/i,
+  /\bi will try to find this information\b/i,
+  /\bthis information on her (?:official )?website\b/i,
 ];
 
 function scrubLeakedReasoning(text: string): string {

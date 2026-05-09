@@ -51,10 +51,15 @@ export async function POST(req: NextRequest) {
       config: {
         systemInstruction: SYSTEM_PROMPT,
         tools: [{ urlContext: {} }, { googleSearch: {} }],
+        // Disable thinking output — otherwise Gemini 2.5 Flash leaks its
+        // tool-use planning ("I'll fall back to google_search…") into the
+        // final response when a url_context fetch fails.
+        thinkingConfig: { thinkingBudget: 0, includeThoughts: false },
       },
     });
 
-    const reply = (response.text ?? "").trim();
+    const raw = (response.text ?? "").trim();
+    const reply = scrubLeakedReasoning(raw);
     const sources = extractSources(response);
 
     return NextResponse.json({ reply, sources });
@@ -66,6 +71,55 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
+}
+
+// Strip sentences/lines where the model narrates its tool-use process or
+// failures instead of just answering the user. Belt-and-braces alongside the
+// system-prompt rules, since Gemini sometimes leaks reasoning anyway.
+const LEAK_PATTERNS: RegExp[] = [
+  /\bi['’]?ll fall back\b/i,
+  /\bfall(?:ing)? back to\b/i,
+  /\bi['’]?ll try (?:again|using)\b/i,
+  /\bi will try again\b/i,
+  /\bi['’]?ll use\b.*\b(google[_ ]?search|url[_ ]?context)\b/i,
+  /\bi will (?:now )?use\b.*\b(general knowledge|knowledge base|google[_ ]?search|url[_ ]?context)\b/i,
+  /\bi apologi[sz]e[, ]/i,
+  /\bbrowse(?: tool)? failed\b/i,
+  /\bwebsite browse failed\b/i,
+  /\bthe (?:browse|fetch) (?:tool|call)\b/i,
+  /\bno content (?:was|has been) returned\b/i,
+  /\bplease try again\b/i,
+  /\bdouble[- ]check that the provided url\b/i,
+  /\bfix the error\b/i,
+  /\b(url_context|google_search)\b/i,
+  /\brestricted to nataliesuleyman\.com\.au\b/i,
+  /\bbased on (?:my|the) (?:general )?knowledge base\b/i,
+  /\bit seems there was an issue\b/i,
+];
+
+function scrubLeakedReasoning(text: string): string {
+  if (!text) return text;
+
+  // Split on blank lines (paragraphs) and on sentence boundaries inside each.
+  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const cleanedParagraphs: string[] = [];
+
+  for (const para of paragraphs) {
+    // Naive sentence split on .!? followed by whitespace.
+    const sentences = para.split(/(?<=[.!?])\s+/);
+    const kept = sentences.filter(
+      (s) => !LEAK_PATTERNS.some((re) => re.test(s))
+    );
+    const joined = kept.join(" ").trim();
+    if (joined) cleanedParagraphs.push(joined);
+  }
+
+  const cleaned = cleanedParagraphs.join("\n\n").trim();
+
+  if (!cleaned) {
+    return "I'm not able to find that on Natalie's website right now. For help, please call the electorate office on (03) 9367 9925.";
+  }
+  return cleaned;
 }
 
 // Pull out grounding URLs from both url_context retrievals and Google Search

@@ -174,18 +174,16 @@ export default function ChatBubble() {
 
       {/* Chat panel */}
       {open && (
-        <div className="bubble-in fixed bottom-24 right-5 z-50 flex h-[min(82vh,680px)] w-[min(96vw,400px)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-black/40">
+        <div className="bubble-in fixed bottom-24 right-5 z-50 flex h-[min(82vh,680px)] w-[min(96vw,400px)] flex-col rounded-3xl bg-white shadow-2xl shadow-black/40">
           {/* Header */}
-          <div className="relative flex items-center gap-3 bg-[#0b0d10] px-5 py-4 text-white">
-            <span className="flex h-8 w-8 items-center justify-center text-white">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="7" width="18" height="13" rx="3" />
-                <path d="M12 7V3" />
-                <circle cx="12" cy="3" r="1" />
-                <circle cx="9" cy="13" r="1.2" fill="currentColor" />
-                <circle cx="15" cy="13" r="1.2" fill="currentColor" />
-                <path d="M9 17h6" />
-              </svg>
+          <div className="relative flex items-center gap-3 rounded-t-3xl bg-[#0b0d10] px-5 py-4 text-white">
+            <span className="flex h-9 w-9 overflow-hidden rounded-full bg-sky-200 ring-2 ring-white/30">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={AVATAR_URL}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             </span>
             <h2 className="text-lg font-semibold tracking-tight">
               Natalie Suleyman MP
@@ -194,7 +192,7 @@ export default function ChatBubble() {
               type="button"
               aria-label="Close chat"
               onClick={() => setOpen(false)}
-              className="absolute -top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900 shadow-md hover:bg-gray-100"
+              className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-gray-900 shadow-md hover:bg-gray-100"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M6 6l12 12M18 6L6 18" />
@@ -228,7 +226,7 @@ export default function ChatBubble() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-100 bg-white px-4 pb-4 pt-3">
+          <div className="rounded-b-3xl border-t border-gray-100 bg-white px-4 pb-4 pt-3">
             <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-5 pr-1.5 focus-within:border-gray-400">
               <textarea
                 ref={inputRef}

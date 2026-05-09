@@ -267,15 +267,24 @@ const LEAK_PATTERNS: RegExp[] = [
 
 function scrubLeakedReasoning(text: string): string {
   if (!text) return text;
-  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  // Normalise inline bullets ("foo. • bar • baz") onto their own lines so the
+  // model's occasional single-line bullet runs render correctly in the UI.
+  const normalised = text.replace(/\s*•\s+/g, "\n• ");
+  const paragraphs = normalised.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   const cleanedParagraphs: string[] = [];
   for (const para of paragraphs) {
-    const sentences = para.split(/(?<=[.!?])\s+/);
-    const kept = sentences.filter(
-      (s) => !LEAK_PATTERNS.some((re) => re.test(s))
-    );
-    const joined = kept.join(" ").trim();
-    if (joined) cleanedParagraphs.push(joined);
+    const lines = para.split("\n");
+    const cleanedLines: string[] = [];
+    for (const line of lines) {
+      const sentences = line.split(/(?<=[.!?])\s+/);
+      const kept = sentences.filter(
+        (s) => !LEAK_PATTERNS.some((re) => re.test(s))
+      );
+      const joined = kept.join(" ").trim();
+      if (joined) cleanedLines.push(joined);
+    }
+    const joinedPara = cleanedLines.join("\n").trim();
+    if (joinedPara) cleanedParagraphs.push(joinedPara);
   }
   const cleaned = cleanedParagraphs.join("\n\n").trim();
   if (!cleaned) {

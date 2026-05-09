@@ -328,23 +328,22 @@ function MessageBubble({ message }: { message: Message }) {
         {message.content}
         {message.sources && message.sources.length > 0 && (
           <div className="mt-2 border-t border-black/10 pt-2 text-[11px] text-gray-500">
-            <p className="font-semibold uppercase tracking-wider text-gray-400">
-              Sources
-            </p>
-            <ul className="mt-1 space-y-0.5">
-              {message.sources.slice(0, 4).map((s, i) => (
-                <li key={i}>
-                  <a
-                    href={s.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-gray-700 underline hover:text-gray-900"
-                  >
-                    {s.title || s.url}
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <span className="mr-1 font-semibold uppercase tracking-wider text-gray-400">
+              Sources:
+            </span>
+            {message.sources.slice(0, 4).map((s, i) => (
+              <span key={i}>
+                {i > 0 && <span className="mx-1.5 text-gray-400">·</span>}
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-700 underline hover:text-gray-900"
+                >
+                  {s.title || s.url}
+                </a>
+              </span>
+            ))}
           </div>
         )}
       </div>

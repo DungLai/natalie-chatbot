@@ -46,15 +46,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
         tools: [{ urlContext: {} }, { googleSearch: {} }],
-        // Disable thinking output — otherwise Gemini 2.5 Flash leaks its
-        // tool-use planning ("I'll fall back to google_search…") into the
-        // final response when a url_context fetch fails.
-        thinkingConfig: { thinkingBudget: 0, includeThoughts: false },
+        // Note: gemini-2.5-pro requires thinking to be enabled; do not set
+        // thinkingBudget: 0 here. Pro's tool-use leakage is much rarer than
+        // Flash, but we still keep the server-side scrub below as a backstop.
       },
     });
 

@@ -16,8 +16,12 @@ type Message = {
 const AVATAR_URL =
   "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=facearea&facepad=2.5&w=400&h=400&q=80";
 
-const TOOLTIP_GREETING =
-  "Hi, I can help you with information about Natalie's office.";
+const TOOLTIP_GREETINGS = [
+  "Hi, I can help you with information about Natalie's office.",
+  "Xin chào, tôi có thể hỗ trợ bạn với thông tin về văn phòng của Natalie.",
+  "您好，我可以为您提供有关 Natalie 办公室的信息。",
+  "안녕하세요, Natalie 사무실에 대한 정보를 안내해 드릴 수 있어요.",
+];
 
 const WELCOME_LINES = [
   "Start a conversation with Natalie Suleyman MP Office",
@@ -35,6 +39,7 @@ export default function ChatBubble() {
   const [open, setOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipDismissed, setTooltipDismissed] = useState(false);
+  const [greetingIndex, setGreetingIndex] = useState(0);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +52,15 @@ export default function ChatBubble() {
     const t = setTimeout(() => setShowTooltip(true), 1200);
     return () => clearTimeout(t);
   }, [tooltipDismissed, open]);
+
+  // Rotate greeting languages while the tooltip is visible.
+  useEffect(() => {
+    if (!showTooltip || open) return;
+    const id = setInterval(() => {
+      setGreetingIndex((i) => (i + 1) % TOOLTIP_GREETINGS.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, [showTooltip, open]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -138,7 +152,9 @@ export default function ChatBubble() {
             onClick={() => setOpen(true)}
             className="bubble-in relative max-w-[260px] rounded-2xl bg-white py-3 pl-4 pr-9 text-left text-sm leading-snug text-gray-800 shadow-xl shadow-black/25 hover:bg-gray-50"
           >
-            {TOOLTIP_GREETING}
+            <span key={greetingIndex} className="bubble-in block">
+              {TOOLTIP_GREETINGS[greetingIndex]}
+            </span>
             {/* Tail pointing toward the avatar */}
             <span className="absolute -right-1.5 bottom-5 h-3 w-3 rotate-45 bg-white shadow-[2px_-2px_4px_rgba(0,0,0,0.04)]" />
             <span

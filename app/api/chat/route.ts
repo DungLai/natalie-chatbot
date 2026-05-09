@@ -6,8 +6,144 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 type IncomingMessage = { role: "user" | "assistant"; content: string };
-
 type Source = { title?: string; url: string };
+
+const SITE_ORIGIN = "https://www.nataliesuleyman.com.au";
+
+// Route a user question to one or more pages on nataliesuleyman.com.au.
+// We always fetch at least one page; if multiple keyword groups match, we
+// fetch the top-2 most relevant.
+const PAGE_ROUTES: { path: string; title: string; keywords: RegExp }[] = [
+  {
+    path: "/contact-me",
+    title: "Contact",
+    keywords:
+      /\b(contact|address|email|phone|office hours|social media|follow|instagram|facebook|twitter|x\.com|linkedin|youtube|tiktok|reach (out|her)|get in touch)\b/i,
+  },
+  {
+    path: "/meet-natalie",
+    title: "About Natalie",
+    keywords:
+      /\b(about|who is|biography|bio|background|history|career|story|meet natalie|her role|elected)\b/i,
+  },
+  {
+    path: "/cost-of-living-support",
+    title: "Cost-of-Living Support",
+    keywords:
+      /\b(cost of living|cost-of-living|rebate|voucher|bonus|energy bill|power bill|electricity|gas bill|concession|financial (help|support)|kinder|childcare|rent|housing|baby bundle|sanitary|tampon)\b/i,
+  },
+  {
+    path: "/veterans",
+    title: "Veterans",
+    keywords:
+      /\b(veteran|veterans|anzac|defence|defense|war|armed forces|service personnel|legacy)\b/i,
+  },
+  {
+    path: "/small-business-employment",
+    title: "Small Business & Employment",
+    keywords:
+      /\b(small business|family business|sole trader|business grant|business support|employment|jobs?|hiring|workforce|apprentice)\b/i,
+  },
+  {
+    path: "/news",
+    title: "News",
+    keywords:
+      /\b(news|announcement|recent|latest|update|press release|media release)\b/i,
+  },
+];
+
+function pickRelevantPages(query: string): { path: string; title: string }[] {
+  const matches = PAGE_ROUTES.filter((r) => r.keywords.test(query));
+  if (matches.length === 0) {
+    // Default: homepage + news for general questions
+    return [
+      { path: "/", title: "Home" },
+      { path: "/news", title: "News" },
+    ];
+  }
+  return matches.slice(0, 2).map(({ path, title }) => ({ path, title }));
+}
+
+// Fetch a page and strip it to plain readable text. Squarespace pages are
+// large (~300KB HTML) but most of that is template chrome — we want the
+// actual visible copy.
+async function fetchAndClean(path: string): Promise<string> {
+  const url = SITE_ORIGIN + path;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    },
+    // Don't let a slow fetch block the whole chat response.
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    throw new Error(`fetch ${path} -> HTTP ${res.status}`);
+  }
+  const html = await res.text();
+  return htmlToText(html);
+}
+
+function htmlToText(html: string): string {
+  const stripped = html
+    // Drop script/style/noscript/svg blocks entirely
+    .replace(/<(script|style|noscript|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    // Block elements → newline so paragraphs survive
+    .replace(/<\/(p|div|li|h[1-6]|tr|article|section|header|footer)>/gi, "\n")
+    .replace(/<br\s*\/?>(?=)/gi, "\n")
+    // Strip all remaining tags
+    .replace(/<[^>]+>/g, " ")
+    // Decode the most common HTML entities
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&rsquo;/g, "’")
+    .replace(/&lsquo;/g, "‘")
+    .replace(/&ldquo;/g, "“")
+    .replace(/&rdquo;/g, "”")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    // Collapse whitespace within lines, then collapse blank-line runs
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
+
+  // Drop the standard Squarespace form-validation noise lines that show up
+  // on every page and add nothing for the model.
+  const NOISE = [
+    /^must be a valid/i,
+    /^value (should|must) /i,
+    /^should not /i,
+    /^captcha /i,
+    /^form (submission|not) /i,
+    /^email addresses should /i,
+    /^country code /i,
+    /^currency value /i,
+    /^passwords should /i,
+    /^please (fill out|try again|enter)/i,
+    /^missing a required/i,
+    /^contained an invalid/i,
+    /^this is not a real date/i,
+    /^all fields in/i,
+    /^review the following/i,
+    /^invalid form/i,
+    /^reload the page/i,
+  ];
+  const lines = stripped
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !NOISE.some((re) => re.test(l)));
+
+  let text = lines.join("\n");
+  // Cap per page so we don't blow up the prompt with 50k characters of nav.
+  if (text.length > 14000) text = text.slice(0, 14000) + "\n…[truncated]";
+  return text;
+}
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -25,7 +161,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const messages = (Array.isArray(body.messages) ? body.messages : []).filter(
+    (m) => typeof m.content === "string" && m.content.trim().length > 0
+  );
   if (messages.length === 0) {
     return NextResponse.json(
       { error: "No messages provided." },
@@ -33,14 +171,51 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Map our chat history into Gemini's content format. Gemini uses "model"
-  // for assistant turns; "user" is unchanged.
-  const contents = messages
-    .filter((m) => typeof m.content === "string" && m.content.trim().length > 0)
-    .map((m) => ({
+  // Pre-fetch relevant pages based on the latest user question.
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const pagesToFetch = lastUser
+    ? pickRelevantPages(lastUser.content)
+    : [{ path: "/", title: "Home" }];
+
+  const fetched: { path: string; title: string; text: string }[] = [];
+  await Promise.all(
+    pagesToFetch.map(async (p) => {
+      try {
+        const text = await fetchAndClean(p.path);
+        fetched.push({ ...p, text });
+      } catch (e) {
+        console.warn(`[chat] fetch failed for ${p.path}:`, e);
+      }
+    })
+  );
+
+  // Build the augmented user turn: original question + fetched page contents
+  // as inline context. The system prompt tells the model to answer using only
+  // this content.
+  const contextBlock =
+    fetched.length > 0
+      ? `\n\n---\nReference content from nataliesuleyman.com.au (use this as your sole source of information for the answer):\n\n` +
+        fetched
+          .map(
+            (p) =>
+              `[Page: ${SITE_ORIGIN}${p.path} — ${p.title}]\n${p.text}`
+          )
+          .join("\n\n---\n\n") +
+        `\n---\n`
+      : "";
+
+  const contents = messages.map((m, i) => {
+    const isLast = i === messages.length - 1 && m.role === "user";
+    return {
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
+      parts: [{ text: isLast ? m.content + contextBlock : m.content }],
+    };
+  });
+
+  const sources: Source[] = fetched.map((p) => ({
+    url: SITE_ORIGIN + p.path,
+    title: p.title,
+  }));
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -50,16 +225,11 @@ export async function POST(req: NextRequest) {
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        tools: [{ urlContext: {} }, { googleSearch: {} }],
-        // Note: gemini-2.5-pro requires thinking to be enabled; do not set
-        // thinkingBudget: 0 here. Pro's tool-use leakage is much rarer than
-        // Flash, but we still keep the server-side scrub below as a backstop.
       },
     });
 
     const raw = (response.text ?? "").trim();
     const reply = scrubLeakedReasoning(raw);
-    const sources = extractSources(response);
 
     return NextResponse.json({ reply, sources });
   } catch (err) {
@@ -72,9 +242,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Strip sentences/lines where the model narrates its tool-use process or
-// failures instead of just answering the user. Belt-and-braces alongside the
-// system-prompt rules, since Gemini sometimes leaks reasoning anyway.
 const LEAK_PATTERNS: RegExp[] = [
   /\bi['’]?ll fall back\b/i,
   /\bfall(?:ing)? back to\b/i,
@@ -94,17 +261,15 @@ const LEAK_PATTERNS: RegExp[] = [
   /\brestricted to nataliesuleyman\.com\.au\b/i,
   /\bbased on (?:my|the) (?:general )?knowledge base\b/i,
   /\bit seems there was an issue\b/i,
+  /\baccording to the (?:provided|reference) content\b/i,
+  /\bbased on the (?:provided|reference) (?:content|text|page)\b/i,
 ];
 
 function scrubLeakedReasoning(text: string): string {
   if (!text) return text;
-
-  // Split on blank lines (paragraphs) and on sentence boundaries inside each.
   const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   const cleanedParagraphs: string[] = [];
-
   for (const para of paragraphs) {
-    // Naive sentence split on .!? followed by whitespace.
     const sentences = para.split(/(?<=[.!?])\s+/);
     const kept = sentences.filter(
       (s) => !LEAK_PATTERNS.some((re) => re.test(s))
@@ -112,53 +277,9 @@ function scrubLeakedReasoning(text: string): string {
     const joined = kept.join(" ").trim();
     if (joined) cleanedParagraphs.push(joined);
   }
-
   const cleaned = cleanedParagraphs.join("\n\n").trim();
-
   if (!cleaned) {
     return "I'm not able to find that on Natalie's website right now. For help, please call the electorate office on (03) 9367 9925.";
   }
   return cleaned;
-}
-
-// Pull out grounding URLs from both url_context retrievals and Google Search
-// grounding chunks, dedup by URL.
-function extractSources(response: unknown): Source[] {
-  const out: Source[] = [];
-  const seen = new Set<string>();
-
-  const candidates =
-    (response as { candidates?: Array<Record<string, unknown>> }).candidates ??
-    [];
-
-  for (const candidate of candidates) {
-    const urlContextMeta = (candidate as {
-      urlContextMetadata?: { urlMetadata?: Array<Record<string, unknown>> };
-    }).urlContextMetadata;
-    const urlMeta = urlContextMeta?.urlMetadata ?? [];
-    for (const item of urlMeta) {
-      const url = (item.retrievedUrl as string) || (item.url as string);
-      if (url && !seen.has(url)) {
-        seen.add(url);
-        out.push({ url });
-      }
-    }
-
-    const groundingMeta = (candidate as {
-      groundingMetadata?: {
-        groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
-      };
-    }).groundingMetadata;
-    const chunks = groundingMeta?.groundingChunks ?? [];
-    for (const chunk of chunks) {
-      const url = chunk.web?.uri;
-      const title = chunk.web?.title;
-      if (url && !seen.has(url)) {
-        seen.add(url);
-        out.push({ url, title });
-      }
-    }
-  }
-
-  return out;
 }

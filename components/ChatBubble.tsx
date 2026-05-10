@@ -250,7 +250,7 @@ export default function ChatBubble() {
                 onKeyDown={onKeyDown}
                 rows={1}
                 placeholder="Type your message..."
-                className="max-h-32 flex-1 resize-none border-0 bg-transparent py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                className="max-h-32 flex-1 resize-none border-0 bg-transparent py-1.5 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none sm:text-sm"
               />
               <button
                 type="button"

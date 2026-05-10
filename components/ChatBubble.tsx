@@ -13,8 +13,7 @@ type Message = {
 
 // Swap this URL to use a different avatar (or drop a file in /public and use
 // a relative path like "/avatar.jpg").
-const AVATAR_URL =
-  "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=facearea&facepad=2.5&w=400&h=400&q=80";
+const AVATAR_URL = "/avatar.jpeg";
 
 const TOOLTIP_GREETINGS = [
   "Hi, I can help you with information about Natalie's office.",
@@ -24,9 +23,9 @@ const TOOLTIP_GREETINGS = [
 ];
 
 const WELCOME_LINES = [
-  "Start a conversation with Natalie Suleyman MP Office",
-  "Bắt đầu cuộc trò chuyện với Văn phòng Natalie Suleyman MP",
-  "开始与 Natalie Suleyman MP 办公室对话",
+  "Hi, I’m Natalie Suleyman MP Office’s digital assistant. I can help with general questions and take messages. Natalie’s office team monitors enquiries where needed.",
+  "Xin chào, tôi là trợ lý kỹ thuật số của Văn phòng Natalie Suleyman MP. Tôi có thể hỗ trợ các câu hỏi chung và ghi nhận lời nhắn. Đội ngũ văn phòng của Natalie sẽ theo dõi các yêu cầu khi cần.",
+  "您好，我是 Natalie Suleyman MP 办公室的数字助理。我可以解答一般问题并记录留言。Natalie 的办公室团队会在需要时跟进您的咨询。",
 ];
 
 const SUGGESTED = [
@@ -202,7 +201,7 @@ export default function ChatBubble() {
               />
             </span>
             <h2 className="text-lg font-semibold tracking-tight">
-              Natalie Suleyman MP
+              Natalie Suleyman MP Office
             </h2>
             <button
               type="button"
@@ -267,8 +266,8 @@ export default function ChatBubble() {
               </button>
             </div>
             <p className="mt-2 text-center text-[10px] text-gray-400">
-              AI-generated answers may contain errors. Verify important details
-              with the electorate office.
+              AI-generated answers may contain errors. For important details,
+              email natalie.suleyman@parliament.vic.gov.au.
             </p>
           </div>
         </div>

@@ -288,7 +288,7 @@ function scrubLeakedReasoning(text: string): string {
   }
   const cleaned = cleanedParagraphs.join("\n\n").trim();
   if (!cleaned) {
-    return "I'm not able to find that on Natalie's website right now. For help, please call the electorate office on (03) 9367 9925.";
+    return "I'm not able to find that on Natalie's website right now. For more information, please email us at natalie.suleyman@parliament.vic.gov.au.";
   }
   return cleaned;
 }
